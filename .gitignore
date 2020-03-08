@@ -1,0 +1,4 @@
+*.tags*
+*.swp
+build
+a.out
