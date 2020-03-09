@@ -35,6 +35,7 @@ $ ./tdma_sim
 
 #include <cstdio>
 #include <cstring>
+#include <ctime>
 #include <vector>
 #include <memory>
 #include <unordered_map>
@@ -56,7 +57,7 @@ struct config
   // propagation delay
   uint32_t prop_delay = 0;
   // message drop probability
-  uint32_t drop_prob = 0;
+  float drop_prob = 0;
   // max slots per frame
   uint8_t slots_per_frame = 10;
   // slot duration (us)
@@ -99,7 +100,7 @@ struct message
     m_src_rid (src_rid),
     m_dst_rid (dst_rid)
   {
-    m_id_counter++;
+    ++m_id_counter;
   }
 
   virtual ~message ()
@@ -118,11 +119,19 @@ struct beacon : public message
 {
   beacon (ns::time::point tx):
     message (message::BEACON, 0, 0xFFFF),
-    m_tx_time (tx)
-  {}
+    m_tx_time (tx),
+    m_beacon_id (m_beacon_id_counter)
+  {
+    ++m_beacon_id_counter;
+  }
   ns::time::point m_tx_time;
   slot_schedule m_slot_schedule;
+  // this helps remote determine #beacons missed
+  uint32_t m_beacon_id;
+
+  static uint32_t m_beacon_id_counter;
 };
+uint32_t beacon::m_beacon_id_counter = 1;
 
 struct data : public message
 {
@@ -158,7 +167,9 @@ public:
 
   channel (const config &cfg):
     m_cfg (cfg)
-  {}
+  {
+    srandom (time(nullptr));
+  }
 
   void add (node *n)
   {
@@ -185,11 +196,17 @@ public:
 
   void send (std::shared_ptr<message> msg)
   {
-    // TODO - drop prob
-
-    ns::simulator::schedule (
-      ns::time::now() + ns::time::duration (m_cfg.prop_delay),
-      std::bind (&channel::receive, this, msg));
+    float r = float(random())/RAND_MAX;
+    if (r > m_cfg.drop_prob)
+    {
+      ns::simulator::schedule (
+        ns::time::now() + ns::time::duration (m_cfg.prop_delay),
+        std::bind (&channel::receive, this, msg));
+    }
+    else
+    {
+      printf ("--------PACKET DROPPED-------\n");
+    }
   }
 
   void receive (std::shared_ptr<message> msg)
@@ -300,10 +317,10 @@ public:
   void tx_beacon ()
   {
     m_beacon_tx_time = ns::time::now ();
+    printf ("%10s: %10u\n", "TX BEACON", m_beacon_tx_time.m_val);
     auto b = std::make_shared<beacon> (m_beacon_tx_time);
     b->m_slot_schedule = m_scheduler.get_schedule ();
     m_channel.send (b);
-    printf ("%10s: %10u\n", "TX BEACON", m_beacon_tx_time.m_val);
 
     auto next = m_beacon_tx_time + ns::time::duration (m_cfg.interval * (1 + m_cfg.cfo));
     ns::simulator::schedule (next, std::bind (&ap::tx_beacon, this));
@@ -346,7 +363,8 @@ public:
     m_cfg (cfg),
     m_channel (chan),
     m_current_time (0),
-    m_cfo_est (0.0f)
+    m_cfo_est (0.0f),
+    m_last_beacon_id (0)
   {
     m_channel.add (this);
   }
@@ -365,6 +383,11 @@ public:
 
   void rx_beacon (std::shared_ptr<beacon> b)
   {
+    // adjust time to account for missed beacons with last estimated cfo
+    const auto missed_beacons = b->m_beacon_id - m_last_beacon_id - 1;
+    m_current_time = m_current_time + ns::time::duration (missed_beacons * m_cfg.interval * (1+m_cfo_est));
+    m_last_beacon_id = b->m_beacon_id;
+
     // run pll to adjust time and frequency offset
     const auto time_error  = b->m_tx_time - m_current_time;
     printf ("%10s: %10u %10u %10d %12.8f\n",
@@ -407,6 +430,7 @@ private:
   channel &m_channel;
   ns::time::point m_current_time;
   float m_cfo_est;
+  uint32_t m_last_beacon_id;
 };
 
 } // namespace tdma
@@ -450,7 +474,7 @@ int main (int C, char *V[])
     else if (!strcmp(V[i], "--prop-delay") && i+1<C)
       cfg.prop_delay = atoi(V[++i]);
     else if (!strcmp(V[i], "--drop-prob") && i+1<C)
-      cfg.drop_prob = atoi(V[++i]);
+      cfg.drop_prob = atof(V[++i]);
     else if (!strcmp(V[i], "-d"))
       cfg.debug = true;
     else if (!strcmp(V[i], "-h"))
