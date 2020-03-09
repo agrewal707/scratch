@@ -37,6 +37,7 @@ $ ./tdma_sim
 #include <cstring>
 #include <vector>
 #include <memory>
+#include <unordered_map>
 
 #include "simulator.h"
 
@@ -100,6 +101,9 @@ struct message
   {
     m_id_counter++;
   }
+
+  virtual ~message ()
+  {}
 
   uint32_t m_id;
   Type m_type;
@@ -308,20 +312,16 @@ public:
   void rx_data (std::shared_ptr<data> d, const ns::time::point &rx_time)
   {
     auto slot_schedule = m_scheduler.get_schedule ();
-    // find what slot is this transmission in
+    // determine the slot where this packet landed
     auto delta_from_beacon = rx_time - m_beacon_tx_time;
-    int slot_i = delta_from_beacon / m_cfg.slot_duration;
+    int slot_i = (delta_from_beacon + m_cfg.guard_time) / m_cfg.slot_duration;
     if (0 <= slot_i && slot_i < 10)
     {
       auto &slot = slot_schedule[slot_i];
       if (slot.m_rid == d->m_src_rid)
-      {
         printf ("%10s: %10u %10d %10u %12s\n", "RX DATA", rx_time.m_val, slot_i, d->m_src_rid, "GOOD");
-      }
       else
-      {
         printf ("%10s: %10u %10d %10u %12s\n", "RX DATA", rx_time.m_val, slot_i, d->m_src_rid, "VIOLATION");
-      }
     }
     else
     {

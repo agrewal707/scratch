@@ -29,11 +29,7 @@ SOFTWARE.
 #ifndef NS_SIMULATOR_H
 #define NS_SIMULATOR_H
 
-#include <cstdio>
-#include <cstdlib>
-#include <cmath>
 #include <list>
-#include <unordered_map>
 #include <functional>
 
 namespace ns {
