@@ -28,7 +28,7 @@ example https://liquidsdr.org/blog/pll-simple-howto/
 /*
 *
 # Build
-$ gcc -Werorr time_sync_pll.c -o time_sync_pll -lm
+$ gcc -Werror time_sync_pll.c -o time_sync_pll -lm
 
 # Run
 $ ./time_sync_pll
