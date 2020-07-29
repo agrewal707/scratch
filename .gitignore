@@ -2,5 +2,5 @@
 *.swp
 build
 a.out
-tdma_sim
-time_sync_pll
+tdma_sim/tdma_sim
+time_sync/time_sync_pll
