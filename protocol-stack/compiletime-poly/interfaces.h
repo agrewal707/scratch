@@ -19,7 +19,7 @@ struct iwf_mac_sap_user
 template <typename mac>
 struct iwf_mac_sap_provider
 {
-  virtual void send (std::string msdu)
+  void send (std::string msdu)
   {
     derived ()->send (msdu);
   }

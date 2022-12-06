@@ -29,7 +29,7 @@ public:
     m_p->send (mpdu);
   }
 
-  virtual void receive (std::string mpdu)
+  void receive (std::string mpdu)
   {
     // process mpdu
     // extract isdu
